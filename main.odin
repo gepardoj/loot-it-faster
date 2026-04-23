@@ -12,14 +12,14 @@ MOUSE_SENSITIVITY :: 0.1
 
 main :: proc() {
 	rl.InitWindow(1000, 800, "Loot it faster")
-	defer rl.CloseWindow()
 
 	wall_tex := rl.LoadTexture("assets/wall-texture.jpg")
-	defer rl.UnloadTexture(wall_tex)
 	cube_mesh := rl.GenMeshCube(STEP, STEP, STEP)
-	defer rl.UnloadMesh(cube_mesh)
 	wall_model := rl.LoadModelFromMesh(cube_mesh)
 	defer rl.UnloadModel(wall_model)
+	defer rl.UnloadTexture(wall_tex)
+
+	defer rl.CloseWindow()
 
 	rl.GenTextureMipmaps(&wall_tex)
 	rl.SetTextureFilter(wall_tex, .POINT)
