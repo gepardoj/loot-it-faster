@@ -6,18 +6,26 @@ import rl "vendor:raylib"
 
 STEP :: 3.0
 HALF_STEP :: STEP / 2
-PLAYER_SPEED :: 5
+PLAYER_SPEED :: 7.5
 CAMERA_SIZE :: 0.3
 MOUSE_SENSITIVITY :: 0.1
 
 main :: proc() {
 	rl.InitWindow(1000, 800, "Loot it faster")
 
+	rl.InitAudioDevice()
+	music_footsteps := rl.LoadMusicStream("assets/footsteps.mp3")
+	rl.PlayMusicStream(music_footsteps)
+
+
 	wall_tex := rl.LoadTexture("assets/wall-texture.jpg")
 	cube_mesh := rl.GenMeshCube(STEP, STEP, STEP)
 	wall_model := rl.LoadModelFromMesh(cube_mesh)
 	defer rl.UnloadModel(wall_model)
 	defer rl.UnloadTexture(wall_tex)
+
+	defer rl.UnloadMusicStream(music_footsteps)
+	defer rl.CloseAudioDevice()
 
 	defer rl.CloseWindow()
 
@@ -53,18 +61,21 @@ main :: proc() {
 		last_camera_target = camera.target
 
 		//// CONTROL
-		move_dir: rl.Vector3
-		if rl.IsKeyDown(.W) do move_dir.z += 1
-		if rl.IsKeyDown(.S) do move_dir.z -= 1
-		if rl.IsKeyDown(.D) do move_dir.x += 1
-		if rl.IsKeyDown(.A) do move_dir.x -= 1
-		move_dir = rl.Vector3Normalize(move_dir)
+		raw_dir: rl.Vector3
+		if rl.IsKeyDown(.W) do raw_dir.z += 1
+		if rl.IsKeyDown(.S) do raw_dir.z -= 1
+		if rl.IsKeyDown(.D) do raw_dir.x += 1
+		if rl.IsKeyDown(.A) do raw_dir.x -= 1
 
 		dir_forward := rl.Vector3Normalize(camera.target - camera.position)
+		dir_forward.y = 0
 		dir_right := rl.Vector3Normalize(rl.Vector3CrossProduct(dir_forward, camera.up))
-		move_step := dir_forward * move_dir.z + dir_right * move_dir.x
-		move_step.y = 0
-		move_step *= PLAYER_SPEED * dt
+		move_direction := dir_forward * raw_dir.z + dir_right * raw_dir.x
+		move_direction = rl.Vector3Normalize(move_direction)
+
+		if rl.Vector3Length(move_direction) >= 0.5 do rl.UpdateMusicStream(music_footsteps)
+
+		move_step := move_direction * PLAYER_SPEED * dt
 
 		camera.position.x += move_step.x
 		if isWallCollide(&maze, &camera, dt) {
