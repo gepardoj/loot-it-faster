@@ -14,6 +14,18 @@ main :: proc() {
 	rl.InitWindow(1000, 800, "Loot it faster")
 	defer rl.CloseWindow()
 
+	wall_tex := rl.LoadTexture("assets/wall-texture.jpg")
+	defer rl.UnloadTexture(wall_tex)
+	cube_mesh := rl.GenMeshCube(STEP, STEP, STEP)
+	defer rl.UnloadMesh(cube_mesh)
+	wall_model := rl.LoadModelFromMesh(cube_mesh)
+	defer rl.UnloadModel(wall_model)
+
+	rl.GenTextureMipmaps(&wall_tex)
+	rl.SetTextureFilter(wall_tex, .POINT)
+
+	wall_model.materials[0].maps[rl.MaterialMapIndex.ALBEDO].texture = wall_tex
+
 	player_start_x, player_start_y, maze := level.generate()
 
 
@@ -90,8 +102,12 @@ main :: proc() {
 				cell := maze[w][h]
 				if (cell == .W) {
 					center_pos := rl.Vector3{f32(w * STEP), 0, f32(h * STEP)}
-					rl.DrawCube(center_pos, STEP, STEP, STEP, rl.GOLD)
-
+					rl.DrawModel(wall_model, center_pos, 1, rl.WHITE)
+				} else {
+					floor_center_pos := rl.Vector3{f32(w * STEP), -STEP, f32(h * STEP)}
+					rl.DrawModel(wall_model, floor_center_pos, 1, rl.WHITE)
+					ceiling_center_pos := rl.Vector3{f32(w * STEP), STEP, f32(h * STEP)}
+					rl.DrawModel(wall_model, ceiling_center_pos, 1, rl.WHITE)
 				}
 			}
 		}
