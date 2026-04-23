@@ -19,7 +19,7 @@ Direction :: enum {
 LEVEL_W :: 20
 LEVEL_H :: 20
 
-generate :: proc() -> [LEVEL_W][LEVEL_H]CellType {
+generate :: proc() -> (int, int, [LEVEL_W][LEVEL_H]CellType) {
 	level: [LEVEL_W][LEVEL_H]CellType
 
 	for w in 0 ..< LEVEL_W {
@@ -72,7 +72,17 @@ generate :: proc() -> [LEVEL_W][LEVEL_H]CellType {
 		}
 	}
 
+	// fill with outer walls
+	for w in 0 ..< LEVEL_W { 	// horizontal
+		level[w][0] = .W
+		level[w][LEVEL_H - 1] = .W
+	}
+	for h in 0 ..< LEVEL_H { 	// vertical
+		level[0][h] = .W
+		level[LEVEL_W - 1][h] = .W
+	}
+
 	level[player_pos_x][player_pos_y] = .P
 
-	return level
+	return player_pos_x, player_pos_y, level
 }
