@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "helpers"
+import "inventory"
 import "level"
 import rl "vendor:raylib"
 
@@ -28,6 +29,12 @@ main :: proc() {
 
 	wall_model := rl.LoadModelFromMesh(cube_mesh)
 
+	lock_pick_model := rl.LoadModel("assets/lock_pick.glb")
+	lock_pick_model.materials[0].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
+	lock_pick_model.materials[1].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
+	lock_pick_img := rl.LoadTexture("assets/img/lock_pick.png")
+
+
 	chest_model := rl.LoadModel("assets/chest.gltf")
 	chest_model.materials[2].maps[rl.MaterialMapIndex.ALBEDO].texture = chest_braces_tex
 	chest_model.materials[2].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
@@ -38,11 +45,13 @@ main :: proc() {
 
 	defer rl.UnloadModel(wall_model)
 	defer rl.UnloadModel(chest_model)
+	defer rl.UnloadModel(lock_pick_model)
 
 	defer rl.UnloadTexture(wall_tex)
 	defer rl.UnloadTexture(chest_braces_tex)
 	defer rl.UnloadTexture(chest_wood_tex)
 	defer rl.UnloadTexture(chest_lock_tex)
+	defer rl.UnloadTexture(lock_pick_img)
 
 
 	defer rl.UnloadMusicStream(music_footsteps)
@@ -72,6 +81,8 @@ main :: proc() {
 
 	last_camera_pos := camera.position
 	last_camera_target := camera.target
+
+	inventory.init()
 
 	for !rl.WindowShouldClose() {
 		dt := rl.GetFrameTime()
@@ -108,15 +119,15 @@ main :: proc() {
 		camera.target += (camera.position - last_camera_pos)
 
 		mouse_delta := rl.GetMouseDelta()
-		rotation := rl.Vector3 {
-			mouse_delta.x * MOUSE_SENSITIVITY,
-			mouse_delta.y * MOUSE_SENSITIVITY,
-			0,
-		}
+		rotation :=
+			rl.Vector3{mouse_delta.x, mouse_delta.y, 0} *
+			MOUSE_SENSITIVITY *
+			f32(int(!inventory.is_open()))
 		rl.UpdateCameraPro(&camera, {}, rotation, 0)
 
 
 		//// UPDATE GAME LOGIC
+		inventory.update()
 
 
 		//// DRAWING
@@ -125,6 +136,13 @@ main :: proc() {
 		rl.ClearBackground(rl.BLACK)
 
 		rl.BeginMode3D(camera)
+
+		// rl.DrawModel(
+		// 	lock_pick_model,
+		// 	{f32(player_start_x * STEP), 0, f32(player_start_z * STEP)},
+		// 	.1,
+		// 	rl.WHITE,
+		// )
 
 		// render walls, floor, ceiling
 		for w in 0 ..< level.LEVEL_W {
@@ -152,8 +170,14 @@ main :: proc() {
 
 		rl.EndMode3D()
 
+		//// UI ////
+		inventory.render_ui(&lock_pick_img)
+
 		rl.EndDrawing()
 	}
+
+	//// CLEANUP
+	inventory.cleanup()
 }
 
 

@@ -10,3 +10,10 @@ print_array :: proc(arr: ^[$W][$H]$T) {
 		fmt.println()
 	}
 }
+
+array_contains :: proc(arr: ^[dynamic]$T, value: $T2) -> bool {
+	for i in arr {
+		if arr[i] == value do return true
+	}
+	return false
+}
