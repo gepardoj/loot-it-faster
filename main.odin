@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "helpers"
 import "level"
 import rl "vendor:raylib"
 
@@ -18,11 +19,31 @@ main :: proc() {
 	rl.PlayMusicStream(music_footsteps)
 
 
-	wall_tex := rl.LoadTexture("assets/wall-texture.jpg")
+	wall_tex := rl.LoadTexture("assets/textures/wall.jpg")
+	chest_braces_tex := rl.LoadTexture("assets/textures/chest_braces.jpg")
+	chest_wood_tex := rl.LoadTexture("assets/textures/chest_wood.jpg")
+	chest_lock_tex := rl.LoadTexture("assets/textures/chest_lock.jpg")
+
 	cube_mesh := rl.GenMeshCube(STEP, STEP, STEP)
+
 	wall_model := rl.LoadModelFromMesh(cube_mesh)
+
+	chest_model := rl.LoadModel("assets/chest.gltf")
+	chest_model.materials[2].maps[rl.MaterialMapIndex.ALBEDO].texture = chest_braces_tex
+	chest_model.materials[2].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
+	chest_model.materials[1].maps[rl.MaterialMapIndex.ALBEDO].texture = chest_wood_tex
+	chest_model.materials[1].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
+	chest_model.materials[3].maps[rl.MaterialMapIndex.ALBEDO].texture = chest_lock_tex
+	chest_model.materials[3].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
+
 	defer rl.UnloadModel(wall_model)
+	defer rl.UnloadModel(chest_model)
+
 	defer rl.UnloadTexture(wall_tex)
+	defer rl.UnloadTexture(chest_braces_tex)
+	defer rl.UnloadTexture(chest_wood_tex)
+	defer rl.UnloadTexture(chest_lock_tex)
+
 
 	defer rl.UnloadMusicStream(music_footsteps)
 	defer rl.CloseAudioDevice()
@@ -34,11 +55,11 @@ main :: proc() {
 
 	wall_model.materials[0].maps[rl.MaterialMapIndex.ALBEDO].texture = wall_tex
 
-	player_start_x, player_start_y, maze := level.generate()
+	player_start_x, player_start_z, maze := level.generate()
 
 
 	camera := rl.Camera {
-		position   = {f32(player_start_x * STEP), 0, f32(player_start_y * STEP)},
+		position   = {f32(player_start_x * STEP), 0, f32(player_start_z * STEP)},
 		target     = {10, 0, 0},
 		up         = {0, 1, 0},
 		fovy       = 45,
@@ -47,10 +68,7 @@ main :: proc() {
 	rl.DisableCursor()
 	rl.SetTargetFPS(60)
 
-
-	for w in 0 ..< level.LEVEL_W {
-		fmt.println(maze[w])
-	}
+	helpers.print_array(&maze)
 
 	last_camera_pos := camera.position
 	last_camera_target := camera.target
@@ -108,13 +126,22 @@ main :: proc() {
 
 		rl.BeginMode3D(camera)
 
+		// render walls, floor, ceiling
 		for w in 0 ..< level.LEVEL_W {
 			for h in 0 ..< level.LEVEL_H {
 				cell := maze[w][h]
-				if (cell == .W) {
+				if cell == .W { 	// render wall
 					center_pos := rl.Vector3{f32(w * STEP), 0, f32(h * STEP)}
 					rl.DrawModel(wall_model, center_pos, 1, rl.WHITE)
-				} else {
+				} else { 	// render floor, ceiling
+					if cell == .C { 	// render chest
+						center_pos := rl.Vector3 {
+							f32(w * STEP),
+							-HALF_STEP,
+							f32(h * STEP) - HALF_STEP / 2,
+						}
+						rl.DrawModelEx(chest_model, center_pos, {0, 1, 0}, 90, 1, rl.WHITE)
+					}
 					floor_center_pos := rl.Vector3{f32(w * STEP), -STEP, f32(h * STEP)}
 					rl.DrawModel(wall_model, floor_center_pos, 1, rl.WHITE)
 					ceiling_center_pos := rl.Vector3{f32(w * STEP), STEP, f32(h * STEP)}
