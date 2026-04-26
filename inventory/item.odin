@@ -11,15 +11,16 @@ ItemType :: enum u8 {
 }
 
 Item :: struct {
-	id:    int,
-	type:  ItemType,
-	shape: []Point,
+	id:     int,
+	type:   ItemType,
+	origin: Point, // top left beginning of shape
+	shape:  []Point,
 }
 
 lock_pick_shape := []Point{{0, 0}, {0, 1}}
 
 @(private)
-_id_counter := 0
+_id_counter := -1
 
 new_id :: proc() -> int {
 	_id_counter += 1
