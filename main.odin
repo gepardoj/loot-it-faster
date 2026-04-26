@@ -4,6 +4,7 @@ import "core:fmt"
 import "helpers"
 import "inventory"
 import "level"
+import "listener"
 import rl "vendor:raylib"
 
 STEP :: 3.0
@@ -11,6 +12,14 @@ HALF_STEP :: STEP / 2
 PLAYER_SPEED :: 7.5
 CAMERA_SIZE :: 0.3
 MOUSE_SENSITIVITY :: 0.1
+
+
+LOCK_MATERIAL_I :: 3
+
+
+ListenerCtx :: struct {
+	chest_model: ^rl.Model,
+}
 
 main :: proc() {
 	rl.InitWindow(1000, 800, "Loot it faster")
@@ -40,8 +49,9 @@ main :: proc() {
 	chest_model.materials[2].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
 	chest_model.materials[1].maps[rl.MaterialMapIndex.ALBEDO].texture = chest_wood_tex
 	chest_model.materials[1].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
-	chest_model.materials[3].maps[rl.MaterialMapIndex.ALBEDO].texture = chest_lock_tex
-	chest_model.materials[3].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
+	chest_model.materials[LOCK_MATERIAL_I].maps[rl.MaterialMapIndex.ALBEDO].texture =
+		chest_lock_tex
+	chest_model.materials[LOCK_MATERIAL_I].maps[rl.MaterialMapIndex.ALBEDO].color = rl.WHITE
 
 	defer rl.UnloadModel(wall_model)
 	defer rl.UnloadModel(chest_model)
@@ -58,6 +68,13 @@ main :: proc() {
 	defer rl.CloseAudioDevice()
 
 	defer rl.CloseWindow()
+
+	listener.init()
+	defer listener.cleanup()
+
+	listener_ctx: ListenerCtx = {&chest_model}
+	listener.subscribe(.DRAGGING_STARTED, &listener_ctx, on_dragging_started)
+	listener.subscribe(.DRAGGING_ENDED, &listener_ctx, on_dragging_ended)
 
 	rl.GenTextureMipmaps(&wall_tex)
 	rl.SetTextureFilter(wall_tex, .POINT)
@@ -107,12 +124,12 @@ main :: proc() {
 		move_step := move_direction * PLAYER_SPEED * dt
 
 		camera.position.x += move_step.x
-		if isWallCollide(&maze, &camera, dt) {
+		if is_wall_collide(&maze, &camera, dt) {
 			camera.position.x = last_camera_pos.x
 		}
 
 		camera.position.z += move_step.z
-		if isWallCollide(&maze, &camera, dt) {
+		if is_wall_collide(&maze, &camera, dt) {
 			camera.position.z = last_camera_pos.z
 		}
 
@@ -180,8 +197,32 @@ main :: proc() {
 	inventory.cleanup()
 }
 
+///// EVENTS //////
 
-isWallCollide :: proc(
+on_dragging_started :: proc(ctx: rawptr, data: rawptr) {
+	ctx := (^ListenerCtx)(ctx)
+	item := (^inventory.Item)(data)
+	if item.type == .LOCK_PICK {
+		ctx.chest_model.materials[LOCK_MATERIAL_I].maps[rl.MaterialMapIndex.ALBEDO].color =
+			rl.GREEN
+	}
+	fmt.println("main::draggin_started", item.type)
+}
+
+on_dragging_ended :: proc(ctx: rawptr, data: rawptr) {
+	ctx := (^ListenerCtx)(ctx)
+	item := (^inventory.Item)(data)
+	if item.type == .LOCK_PICK {
+		ctx.chest_model.materials[LOCK_MATERIAL_I].maps[rl.MaterialMapIndex.ALBEDO].color =
+			rl.WHITE
+	}
+	fmt.println("main::draggin_ended", item.type)
+}
+
+
+///// OTHER /////
+
+is_wall_collide :: proc(
 	maze: ^[level.LEVEL_W][level.LEVEL_H]level.CellType,
 	camera: ^rl.Camera,
 	dt: f32,

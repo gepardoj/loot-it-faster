@@ -1,5 +1,6 @@
 package inventory
 
+import "../listener"
 import "core:fmt"
 import rl "vendor:raylib"
 
@@ -24,17 +25,16 @@ _inventory: [INV_W][INV_H]int // ID's of items, -1 for empty
 
 @(private)
 _is_dragging := false
+is_dragging :: proc() -> bool {return _is_dragging}
+
 @(private)
-_dragged_item: ^Item = nil
-@(private)
-_dragged_item_part_pos: Point
+_dragging_item: ^Item = nil
+dragged_item :: proc() -> ^Item {return _dragging_item}
 
 
 @(private)
 _is_open := false
-is_open :: proc() -> bool {
-	return _is_open
-}
+is_open :: proc() -> bool {return _is_open}
 
 @(private)
 _items: [dynamic]Item
@@ -81,30 +81,33 @@ update :: proc() {
 			cell_x := int(pos.x) / CELL_SIZE
 			cell_y := int(pos.y) / CELL_SIZE
 			if rl.IsMouseButtonPressed(.LEFT) {
-				fmt.println("pressed :: ", cell_x, cell_y)
+				// fmt.println("pressed :: ", cell_x, cell_y)
 				item_id := _inventory[cell_x][cell_y]
 				if (item_id != EMPTY) {
-					_dragged_item = &_items[item_id]
+					_dragging_item = &_items[item_id]
 					_is_dragging = true
+					listener.emit(.DRAGGING_STARTED, _dragging_item)
 				}
 			}
 			if _is_dragging {
-				fmt.println("dragging :: ", cell_x, cell_y)
-				fmt.println(_dragged_item.type)
-
+				// fmt.println("dragging :: ", cell_x, cell_y)
+				// fmt.println(_dragging_item.type)
+				listener.emit(.DRAGGING, _dragging_item)
 			}
-			if _dragged_item != nil && rl.IsMouseButtonReleased(.LEFT) {
-				fmt.println("released :: ", cell_x, cell_y, _dragged_item.type)
+			if _dragging_item != nil && rl.IsMouseButtonReleased(.LEFT) {
+				// fmt.println("released :: ", cell_x, cell_y, _dragging_item.type)
 				new_x := cell_x
 				new_y := cell_y
-				if _can_move_to(_dragged_item, new_x, new_y) do _move_item_to(_dragged_item, new_x, new_y)
+				if _can_move_to(_dragging_item, new_x, new_y) do _move_item_to(_dragging_item, new_x, new_y)
+				listener.emit(.DRAGGING_ENDED, _dragging_item)
 				_is_dragging = false
-				_dragged_item = nil
+				_dragging_item = nil
 			}
 		} else { 	// outside the inventory area
 			if rl.IsMouseButtonReleased(.LEFT) {
+				listener.emit(.DRAGGING_ENDED, _dragging_item)
 				_is_dragging = false
-				_dragged_item = nil
+				_dragging_item = nil
 			}
 		}
 	}
@@ -130,7 +133,7 @@ _move_item_to :: proc(item: ^Item, new_x, new_y: int) {
 		_inventory[new_x + offset.x][new_y + offset.y] = item.id
 	}
 	item.origin = {new_x, new_y}
-	fmt.println("moved")
+	// fmt.println("moved")
 }
 
 RenderingTriplet :: struct {
@@ -170,11 +173,11 @@ render_ui :: proc(lock_pick_img: ^rl.Texture) {
 		// 2. and we render items separately from inventory loop
 		for data in rendered_items {
 			// we do not render dragged item in its current position
-			if _dragged_item != nil && _dragged_item.id == data.id do continue
+			if _dragging_item != nil && _dragging_item.id == data.id do continue
 			rl.DrawTexture(lock_pick_img^, i32(data.x), i32(data.y), rl.WHITE)
 		}
 		// render dragged item
-		if _dragged_item != nil {
+		if _dragging_item != nil {
 			mouse_pos := rl.GetMousePosition()
 			rl.DrawTexture(lock_pick_img^, i32(mouse_pos.x), i32(mouse_pos.y), rl.WHITE)
 		}
