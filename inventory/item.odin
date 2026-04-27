@@ -17,6 +17,11 @@ Item :: struct {
 	shape:  []Point,
 }
 
+EventItemData :: struct {
+	item:       ^Item,
+	is_in_area: bool,
+}
+
 lock_pick_shape := []Point{{0, 0}, {0, 1}}
 
 @(private)

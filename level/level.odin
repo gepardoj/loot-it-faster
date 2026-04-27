@@ -2,6 +2,7 @@ package level
 
 import "core:math"
 import "core:math/rand"
+import rl "vendor:raylib"
 
 CellType :: enum u8 {
 	P,
@@ -20,24 +21,37 @@ Direction :: enum {
 
 LEVEL_W :: 20
 LEVEL_H :: 20
+STEP :: 3.0
+HALF_STEP :: STEP / 2
 
 CORRIDORS_NUM :: 80
 
 CHEST_SPAWN_SECTOR_SIZE :: 6
 
-generate :: proc() -> (int, int, [LEVEL_W][LEVEL_H]CellType) {
-	level: [LEVEL_W][LEVEL_H]CellType
+chests_positions: [dynamic]rl.Vector3
+player_start_x: int
+player_start_z: int
+maze: [LEVEL_W][LEVEL_H]CellType
 
+init :: proc() {
+	chests_positions = make([dynamic]rl.Vector3)
+}
+
+cleanup :: proc() {
+	delete(chests_positions)
+}
+
+generate :: proc() {
 	for w in 0 ..< LEVEL_W {
 		for h in 0 ..< LEVEL_H {
-			level[w][h] = .W
+			maze[w][h] = .W
 		}
 	}
-	player_pos_x := rand.int_range(5, LEVEL_W - 5)
-	player_pos_y := rand.int_range(5, LEVEL_H - 5)
+	player_start_x = rand.int_range(5, LEVEL_W - 5)
+	player_start_z = rand.int_range(5, LEVEL_H - 5)
 
-	x := player_pos_x
-	y := player_pos_y
+	x := player_start_x
+	y := player_start_z
 	dir := Direction.None
 
 	for i in 0 ..< CORRIDORS_NUM {
@@ -66,46 +80,59 @@ generate :: proc() -> (int, int, [LEVEL_W][LEVEL_H]CellType) {
 				y -= 1
 			}
 			if (x == -1 || y == -1 || x == LEVEL_W || y == LEVEL_H) {
-				x = player_pos_x
-				y = player_pos_y
+				x = player_start_x
+				y = player_start_z
 				dir = .None
 				break
 			}
-			if (level[x][y] == .P) {
+			if (maze[x][y] == .P) {
 				continue
 			}
-			level[x][y] = .O
+			maze[x][y] = .O
 		}
 	}
 
 	// spawn chests
-	level[0][0] = .C
-	make_corridors_to_player(&level, .None, 0, 0, player_pos_x, player_pos_y)
+	maze[0][0] = .C
+	make_corridors_to_player(&maze, .None, 0, 0, player_start_x, player_start_z)
 	for w in 0 ..< LEVEL_W / CHEST_SPAWN_SECTOR_SIZE {
 		for h in 0 ..< LEVEL_H / CHEST_SPAWN_SECTOR_SIZE {
 			x := rand.int_range(w * CHEST_SPAWN_SECTOR_SIZE, (w + 1) * CHEST_SPAWN_SECTOR_SIZE)
 			y := rand.int_range(h * CHEST_SPAWN_SECTOR_SIZE, (h + 1) * CHEST_SPAWN_SECTOR_SIZE)
-			level[x][y] = .C
-			make_corridors_to_player(&level, .None, x, y, player_pos_x, player_pos_y)
+			maze[x][y] = .C
+			make_corridors_to_player(&maze, .None, x, y, player_start_x, player_start_z)
 		}
 	}
 
 	// fill with outer walls
 	for w in 0 ..< LEVEL_W { 	// horizontal
-		level[w][0] = .W
-		level[w][LEVEL_H - 1] = .W
+		maze[w][0] = .W
+		maze[w][LEVEL_H - 1] = .W
 	}
 	for h in 0 ..< LEVEL_H { 	// vertical
-		level[0][h] = .W
-		level[LEVEL_W - 1][h] = .W
+		maze[0][h] = .W
+		maze[LEVEL_W - 1][h] = .W
 	}
 
-	level[player_pos_x][player_pos_y] = .P
+	maze[player_start_x][player_start_z] = .P
 
-	return player_pos_x, player_pos_y, level
+	init_chests_positions()
 }
 
+@(private)
+init_chests_positions :: proc() {
+	for w in 0 ..< LEVEL_W {
+		for h in 0 ..< LEVEL_H {
+			cell := maze[w][h]
+			if (cell == .C) {
+				center_pos := rl.Vector3{f32(w * STEP), -HALF_STEP, f32(h * STEP) - HALF_STEP / 2}
+				append(&chests_positions, center_pos)
+			}
+		}
+	}
+}
 
+@(private)
 make_corridors_to_player :: proc(
 	level: ^[LEVEL_W][LEVEL_H]CellType,
 	comes_from: Direction,

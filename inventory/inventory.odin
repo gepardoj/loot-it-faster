@@ -99,13 +99,15 @@ update :: proc() {
 				new_x := cell_x
 				new_y := cell_y
 				if _can_move_to(_dragging_item, new_x, new_y) do _move_item_to(_dragging_item, new_x, new_y)
-				listener.emit(.DRAGGING_ENDED, _dragging_item)
+				data: EventItemData = {_dragging_item, true}
+				listener.emit(.DRAGGING_ENDED, &data)
 				_is_dragging = false
 				_dragging_item = nil
 			}
 		} else { 	// outside the inventory area
-			if rl.IsMouseButtonReleased(.LEFT) {
-				listener.emit(.DRAGGING_ENDED, _dragging_item)
+			if _dragging_item != nil && rl.IsMouseButtonReleased(.LEFT) {
+				data: EventItemData = {_dragging_item, false}
+				listener.emit(.DRAGGING_ENDED, &data)
 				_is_dragging = false
 				_dragging_item = nil
 			}
