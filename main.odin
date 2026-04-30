@@ -8,24 +8,10 @@ import "inventory"
 import "level"
 import "listener"
 import "lockpicking"
+import "physics"
 import "rs"
 import rl "vendor:raylib"
 
-PLAYER_SPEED :: 7.5
-CAMERA_SIZE :: 0.3
-MOUSE_SENSITIVITY :: 0.1
-
-
-LOCK_MESH_I :: 0
-CHEST_ROTATION_D :: 90
-CHEST_ROTATION_R :: CHEST_ROTATION_D * rl.DEG2RAD
-
-
-ListenerCtx :: struct {
-	camera:      ^rl.Camera,
-	chest_model: ^rl.Model,
-	chests:      ^[dynamic]level.Chest,
-}
 
 main :: proc() {
 	rl.InitWindow(1000, 800, "Loot it faster")
@@ -63,7 +49,7 @@ main :: proc() {
 	listener.init()
 	defer listener.cleanup()
 
-	listener_ctx: ListenerCtx = {&camera, &rs.chest_model, &level.chests}
+	listener_ctx: listener.ListenerCtx = {&camera, &rs.chest_model, &level.chests}
 	listener.subscribe(.DRAGGING_STARTED, &listener_ctx, on_dragging_started)
 	listener.subscribe(.DRAGGING_ENDED, &listener_ctx, on_dragging_ended)
 
@@ -102,15 +88,15 @@ main :: proc() {
 
 		if rl.Vector3Length(move_direction) >= 0.5 do rl.UpdateMusicStream(fx.music_footsteps)
 
-		move_step := move_direction * PLAYER_SPEED * dt
+		move_step := move_direction * game.PLAYER_SPEED * dt
 
 		camera.position.x += move_step.x
-		if is_wall_collide(&level.maze, &camera, dt) {
+		if physics.is_collide_level_walls(&level.maze, &camera, dt) {
 			camera.position.x = last_camera_pos.x
 		}
 
 		camera.position.z += move_step.z
-		if is_wall_collide(&level.maze, &camera, dt) {
+		if physics.is_collide_level_walls(&level.maze, &camera, dt) {
 			camera.position.z = last_camera_pos.z
 		}
 
@@ -119,7 +105,7 @@ main :: proc() {
 		mouse_delta := rl.GetMouseDelta()
 		rotation :=
 			rl.Vector3{mouse_delta.x, mouse_delta.y, 0} *
-			MOUSE_SENSITIVITY *
+			game.MOUSE_SENSITIVITY *
 			f32(int(!inventory.is_open()))
 		rl.UpdateCameraPro(&camera, {}, rotation, 0)
 
@@ -137,7 +123,14 @@ main :: proc() {
 		rl.BeginMode3D(camera)
 
 		for chest in level.chests {
-			rl.DrawModelEx(rs.chest_model, chest.pos, {0, 1, 0}, CHEST_ROTATION_D, 1, rl.WHITE)
+			rl.DrawModelEx(
+				rs.chest_model,
+				chest.pos,
+				{0, 1, 0},
+				game.CHEST_ROTATION_D,
+				1,
+				rl.WHITE,
+			)
 		}
 
 		for lockpick in level.lockpicks {
@@ -188,7 +181,7 @@ main :: proc() {
 ///// EVENT HANDLERS //////
 
 on_dragging_started :: proc(ctx: rawptr, data: rawptr) {
-	ctx := (^ListenerCtx)(ctx)
+	ctx := (^listener.ListenerCtx)(ctx)
 	item := (^inventory.Item)(data)
 	if item.type == .LOCKPICK {
 		ctx.chest_model.materials[rs.LOCK_MATERIAL_I].maps[rl.MaterialMapIndex.ALBEDO].color =
@@ -198,76 +191,15 @@ on_dragging_started :: proc(ctx: rawptr, data: rawptr) {
 }
 
 on_dragging_ended :: proc(ctx: rawptr, data: rawptr) {
-	ctx := (^ListenerCtx)(ctx)
+	ctx := (^listener.ListenerCtx)(ctx)
 	data := (^inventory.EventItemData)(data)
 	// use a lockpick on a chest
 	if data.item.type == .LOCKPICK {
 		ctx.chest_model.materials[rs.LOCK_MATERIAL_I].maps[rl.MaterialMapIndex.ALBEDO].color =
 			rl.WHITE
 		if !data.is_in_area {
-			is_raycasting_chest_lock(ctx, data.item)
+			lockpicking.create_lockpick_in_chest_lock(ctx, data.item)
 		}
 	}
 	// fmt.println("main::draggin_ended", data.item.type)
-}
-
-
-///// OTHER /////
-
-is_raycasting_chest_lock :: proc(ctx: ^ListenerCtx, item: ^inventory.Item) {
-	ray := rl.GetScreenToWorldRay(rl.GetMousePosition(), ctx.camera^)
-	for &chest in ctx.chests {
-		if chest.is_lockpick_in do continue
-		rotation := rl.MatrixRotate({0, 1, 0}, CHEST_ROTATION_R)
-		translation := rl.MatrixTranslate(chest.pos.x, chest.pos.y, chest.pos.z)
-		chest_transform := translation * rotation
-		hit_info := rl.GetRayCollisionMesh(
-			ray,
-			ctx.chest_model.meshes[LOCK_MESH_I],
-			chest_transform,
-		)
-		if hit_info.hit == true && hit_info.distance <= game.USE_DISTANCE {
-			fmt.println("use it")
-			inventory.remove_item(item)
-			chest.is_lockpick_in = true
-			lock_bbox := rl.GetMeshBoundingBox(ctx.chest_model.meshes[LOCK_MESH_I])
-			lock_local_center := (lock_bbox.min + lock_bbox.max) * 0.5
-			lockpick_pos := rl.Vector3Transform(lock_local_center, chest_transform)
-			lockpick_pos.z += .1
-			level.add_lockpick(lockpick_pos, &chest)
-		}
-	}
-}
-
-is_wall_collide :: proc(
-	maze: ^[level.LEVEL_W][level.LEVEL_H]level.CellType,
-	camera: ^rl.Camera,
-	dt: f32,
-) -> bool {
-	player_box := rl.BoundingBox{camera.position - CAMERA_SIZE, camera.position + CAMERA_SIZE}
-	for w in 0 ..< level.LEVEL_W {
-		for h in 0 ..< level.LEVEL_H {
-			cell := maze[w][h]
-			if (cell == .W) {
-				wall_box := rl.BoundingBox {
-					{
-						f32(w) * level.STEP - level.HALF_STEP,
-						-level.HALF_STEP,
-						f32(h) * level.STEP - level.HALF_STEP,
-					},
-					{
-						f32((w + 1)) * level.STEP - level.HALF_STEP,
-						level.HALF_STEP,
-						f32((h + 1)) * level.STEP - level.HALF_STEP,
-					},
-				}
-				// rl.DrawBoundingBox(wall_box, rl.MAROON)
-				if rl.CheckCollisionBoxes(wall_box, player_box) {
-					// fmt.println("HIT", dt)
-					return true
-				}
-			}
-		}
-	}
-	return false
 }

@@ -4,6 +4,7 @@ import "../fx"
 import "../game"
 import "../inventory"
 import "../level"
+import "../listener"
 import "../rs"
 import "core:fmt"
 import "core:math/rand"
@@ -92,6 +93,31 @@ lockpicking :: proc(camera: ^rl.Camera) {
 					}
 				}
 			}
+		}
+	}
+}
+
+create_lockpick_in_chest_lock :: proc(ctx: ^listener.ListenerCtx, item: ^inventory.Item) {
+	ray := rl.GetScreenToWorldRay(rl.GetMousePosition(), ctx.camera^)
+	for &chest in ctx.chests {
+		if chest.is_lockpick_in do continue
+		rotation := rl.MatrixRotate({0, 1, 0}, game.CHEST_ROTATION_R)
+		translation := rl.MatrixTranslate(chest.pos.x, chest.pos.y, chest.pos.z)
+		chest_transform := translation * rotation
+		hit_info := rl.GetRayCollisionMesh(
+			ray,
+			ctx.chest_model.meshes[game.LOCK_MESH_I],
+			chest_transform,
+		)
+		if hit_info.hit == true && hit_info.distance <= game.USE_DISTANCE {
+			fmt.println("use it")
+			inventory.remove_item(item)
+			chest.is_lockpick_in = true
+			lock_bbox := rl.GetMeshBoundingBox(ctx.chest_model.meshes[game.LOCK_MESH_I])
+			lock_local_center := (lock_bbox.min + lock_bbox.max) * 0.5
+			lockpick_pos := rl.Vector3Transform(lock_local_center, chest_transform)
+			lockpick_pos.z += .1
+			level.add_lockpick(lockpick_pos, &chest)
 		}
 	}
 }

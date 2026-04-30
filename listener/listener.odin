@@ -1,10 +1,20 @@
 package listener
 
+import "../level"
+import rl "vendor:raylib"
+
 EventType :: enum u8 {
 	DRAGGING_STARTED,
 	DRAGGING,
 	DRAGGING_ENDED,
 }
+
+ListenerCtx :: struct {
+	camera:      ^rl.Camera,
+	chest_model: ^rl.Model,
+	chests:      ^[dynamic]level.Chest,
+}
+
 
 StoredCallback :: struct {
 	type: EventType,

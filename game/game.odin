@@ -1,3 +1,14 @@
 package game
 
+import rl "vendor:raylib"
+
+PLAYER_SPEED :: 7.5
+MOUSE_SENSITIVITY :: 0.1
+CAMERA_SIZE :: 0.3
+
 USE_DISTANCE :: 2.5
+
+
+LOCK_MESH_I :: 0
+CHEST_ROTATION_D :: 90
+CHEST_ROTATION_R :: CHEST_ROTATION_D * rl.DEG2RAD
