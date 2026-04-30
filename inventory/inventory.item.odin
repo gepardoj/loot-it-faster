@@ -7,7 +7,7 @@ Point :: struct {
 
 
 ItemType :: enum u8 {
-	LOCK_PICK,
+	LOCKPICK,
 }
 
 Item :: struct {
@@ -22,7 +22,7 @@ EventItemData :: struct {
 	is_in_area: bool,
 }
 
-lock_pick_shape := []Point{{0, 0}, {0, 1}}
+LOCKPICK_SHAPE := []Point{{0, 0}, {0, 1}}
 
 @(private)
 _id_counter := -1
@@ -30,4 +30,12 @@ _id_counter := -1
 new_id :: proc() -> int {
 	_id_counter += 1
 	return _id_counter
+}
+
+get_shape_by_type :: proc(type: ItemType) -> []Point {
+	switch type {
+	case .LOCKPICK:
+		return LOCKPICK_SHAPE
+	}
+	return {}
 }

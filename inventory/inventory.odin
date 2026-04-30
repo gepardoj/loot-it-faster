@@ -1,6 +1,7 @@
 package inventory
 
 import "../listener"
+import "../rs"
 import "core:fmt"
 import rl "vendor:raylib"
 
@@ -23,13 +24,12 @@ BORDER_COLOR :: rl.Color{110, 90, 60, 255}
 @(private)
 _inventory: [INV_W][INV_H]int // ID's of items, -1 for empty
 
-@(private)
-_is_dragging := false
-is_dragging :: proc() -> bool {return _is_dragging}
 
 @(private)
 _dragging_item: ^Item = nil
 dragged_item :: proc() -> ^Item {return _dragging_item}
+set_dragged_item :: proc(item: ^Item) {_dragging_item = item}
+is_dragging :: proc() -> bool {return dragged_item != nil}
 
 
 @(private)
@@ -37,7 +37,7 @@ _is_open := false
 is_open :: proc() -> bool {return _is_open}
 
 @(private)
-_items: [dynamic]Item
+_items: map[int]Item
 
 
 init :: proc() {
@@ -47,14 +47,25 @@ init :: proc() {
 		}
 	}
 
-	_items = make([dynamic]Item)
+	_items = make(map[int]Item)
 
 	for i in 0 ..< 5 {
-		lock_pick: Item = {new_id(), .LOCK_PICK, {i, 0}, lock_pick_shape}
-		put_item(i, 0, &lock_pick)
-		append(&_items, lock_pick)
+		lockpick: Item = {new_id(), .LOCKPICK, {i, 0}, LOCKPICK_SHAPE}
+		put_item(i, 0, &lockpick)
+		_items[lockpick.id] = lockpick
 	}
 }
+
+cleanup :: proc() {
+	delete(_items)
+}
+
+
+// create_item :: proc(type: ItemType, pos_x, pos_y: int) -> ^Item {
+// 	item: Item = {new_id(), type, {pos_x, pos_y}, get_shape_by_type(type)}
+// 	_items[item.id] = item
+// 	return &_items[item.id]
+// }
 
 put_item :: proc(x, y: int, item: ^Item) {
 	for offset in item.shape {
@@ -85,11 +96,10 @@ update :: proc() {
 				item_id := _inventory[cell_x][cell_y]
 				if (item_id != EMPTY) {
 					_dragging_item = &_items[item_id]
-					_is_dragging = true
 					listener.emit(.DRAGGING_STARTED, _dragging_item)
 				}
 			}
-			if _is_dragging {
+			if _dragging_item != nil {
 				// fmt.println("dragging :: ", cell_x, cell_y)
 				// fmt.println(_dragging_item.type)
 				listener.emit(.DRAGGING, _dragging_item)
@@ -101,14 +111,12 @@ update :: proc() {
 				if _can_move_to(_dragging_item, new_x, new_y) do _move_item_to(_dragging_item, new_x, new_y)
 				data: EventItemData = {_dragging_item, true}
 				listener.emit(.DRAGGING_ENDED, &data)
-				_is_dragging = false
 				_dragging_item = nil
 			}
 		} else { 	// outside the inventory area
 			if _dragging_item != nil && rl.IsMouseButtonReleased(.LEFT) {
 				data: EventItemData = {_dragging_item, false}
 				listener.emit(.DRAGGING_ENDED, &data)
-				_is_dragging = false
 				_dragging_item = nil
 			}
 		}
@@ -128,8 +136,10 @@ _can_move_to :: proc(item: ^Item, new_x, new_y: int) -> bool {
 @(private)
 _move_item_to :: proc(item: ^Item, new_x, new_y: int) {
 	// this two actions of clearing and setting item, it has to be separated, otherwise it can clear each other, if we move the item bellow by 1 step
-	for offset in item.shape {
-		_inventory[item.origin.x + offset.x][item.origin.y + offset.y] = EMPTY
+	if item.origin.x != -1 { 	//TODO:we need to use inventory origin pointer. if item came from other source
+		for offset in item.shape {
+			_inventory[item.origin.x + offset.x][item.origin.y + offset.y] = EMPTY
+		}
 	}
 	for offset in item.shape {
 		_inventory[new_x + offset.x][new_y + offset.y] = item.id
@@ -142,7 +152,7 @@ RenderingTriplet :: struct {
 	x, y, id: int,
 }
 
-render_ui :: proc(lock_pick_img: ^rl.Texture) {
+render_ui :: proc() {
 	if _is_open {
 		rendered_items := make([dynamic]RenderingTriplet)
 		defer delete(rendered_items)
@@ -164,9 +174,9 @@ render_ui :: proc(lock_pick_img: ^rl.Texture) {
 					BORDER_COLOR,
 				)
 				id := _inventory[w][h]
-				for item in _items {
+				for item_id in _items {
 					// 1. we need to store ids of items to prevent rendering again the other parts of this item
-					if (id == item.id && !has_rendered_id(&rendered_items, id)) {
+					if (id == item_id && !has_rendered_id(&rendered_items, id)) {
 						append(&rendered_items, RenderingTriplet{pos_x, pos_y, id})
 					}
 				}
@@ -176,18 +186,14 @@ render_ui :: proc(lock_pick_img: ^rl.Texture) {
 		for data in rendered_items {
 			// we do not render dragged item in its current position
 			if _dragging_item != nil && _dragging_item.id == data.id do continue
-			rl.DrawTexture(lock_pick_img^, i32(data.x), i32(data.y), rl.WHITE)
+			rl.DrawTexture(rs.lockpick_img, i32(data.x), i32(data.y), rl.WHITE)
 		}
 		// render dragged item
 		if _dragging_item != nil {
 			mouse_pos := rl.GetMousePosition()
-			rl.DrawTexture(lock_pick_img^, i32(mouse_pos.x), i32(mouse_pos.y), rl.WHITE)
+			rl.DrawTexture(rs.lockpick_img, i32(mouse_pos.x), i32(mouse_pos.y), rl.WHITE)
 		}
 	}
-}
-
-cleanup :: proc() {
-	delete(_items)
 }
 
 has_rendered_id :: proc(rendered_ids: ^[dynamic]RenderingTriplet, id: int) -> bool {
@@ -195,4 +201,11 @@ has_rendered_id :: proc(rendered_ids: ^[dynamic]RenderingTriplet, id: int) -> bo
 		if data.id == id do return true
 	}
 	return false
+}
+
+remove_item :: proc(item: ^Item) {
+	for offset in item.shape {
+		_inventory[item.origin.x + offset.x][item.origin.y + offset.y] = EMPTY
+	}
+	delete_key(&_items, item.id)
 }

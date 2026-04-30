@@ -28,17 +28,20 @@ CORRIDORS_NUM :: 80
 
 CHEST_SPAWN_SECTOR_SIZE :: 6
 
-chests_positions: [dynamic]rl.Vector3
+chests: [dynamic]Chest
+lockpicks: [dynamic]Lockpick
 player_start_x: int
 player_start_z: int
 maze: [LEVEL_W][LEVEL_H]CellType
 
 init :: proc() {
-	chests_positions = make([dynamic]rl.Vector3)
+	chests = make([dynamic]Chest)
+	lockpicks = make([dynamic]Lockpick)
 }
 
 cleanup :: proc() {
-	delete(chests_positions)
+	delete(chests)
+	delete(lockpicks)
 }
 
 generate :: proc() {
@@ -116,17 +119,17 @@ generate :: proc() {
 
 	maze[player_start_x][player_start_z] = .P
 
-	init_chests_positions()
+	init_chests()
 }
 
 @(private)
-init_chests_positions :: proc() {
+init_chests :: proc() {
 	for w in 0 ..< LEVEL_W {
 		for h in 0 ..< LEVEL_H {
 			cell := maze[w][h]
 			if (cell == .C) {
 				center_pos := rl.Vector3{f32(w * STEP), -HALF_STEP, f32(h * STEP) - HALF_STEP / 2}
-				append(&chests_positions, center_pos)
+				append(&chests, create_chest(center_pos))
 			}
 		}
 	}
@@ -171,4 +174,8 @@ make_corridors_to_player :: proc(
 
 is_valid :: proc(x, y: int) -> bool {
 	return x >= 0 && x < LEVEL_W && y >= 0 && y < LEVEL_H
+}
+
+add_lockpick :: proc(pos: rl.Vector3, chest: ^Chest) {
+	append(&lockpicks, create_lockpick(pos, chest))
 }
